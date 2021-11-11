@@ -7,8 +7,8 @@
 
 ### 예외 전파(Exception propagation)
 - 코루틴 빌더는 두 가지 방법으로 예외를 전파한다.
-    - 자동 예외 전파(launch, actor) : uncaught exception
-    - 사용자에게 노출(exposing them to users. async, produce) : relying on user to consume the final exception
+  - 자동 예외 전파(launch, actor) : uncaught exception
+  - 사용자에게 노출(exposing them to users. async, produce) : relying on user to consume the final exception
 ```kotlin
 @OptIn(DelicateCoroutinesApi::class)
 fun main() = runBlocking {
@@ -84,31 +84,31 @@ CoroutineExceptionHandler got java.lang.AssertionError
 - `CancellationException` 예외는 모든 핸들러에서 무시된다. catch 블록에서 디버그 정보로 사용할 수 있다.
 - **자식 코루틴이 취소되도 부모 코루틴은 취소되지 않는다.**
 - **CancellationException 이외의 예외가 발생하면 부모 코루틴까지 취소한다.**
-    - **This behaviour cannot be overridden and is used to provide stable coroutines hierarchies for structured concurrency.**
-    - CoroutineExceptionHandler 구현은 자식 코루틴에 사용되지 않는다.
+  - **This behaviour cannot be overridden and is used to provide stable coroutines hierarchies for structured concurrency.**
+  - CoroutineExceptionHandler 구현은 자식 코루틴에 사용되지 않는다.
 
 ```kotlin
 fun main() = runBlocking {
-  val job = launch {  // 부모 코루틴
-    val child = launch {  // 자식 코루틴
-      try {
-        delay(Long.MAX_VALUE)
-      } catch (e: CancellationException) {
-        println("Catch CancellationException")
-      } finally {
-        println("Child is cancelled")
-      }
+    val job = launch {  // 부모 코루틴
+        val child = launch {  // 자식 코루틴
+            try {
+                delay(Long.MAX_VALUE)
+            } catch (e: CancellationException) {
+                println("Catch CancellationException")
+            } finally {
+                println("Child is cancelled")
+            }
+        }
+        yield() // 일시정지
+        println("Cancelling child")
+        child.cancel()  // 자식 코루틴 취소
+        child.join() // 자식 코루틴 종료 대기
+
+        yield() // 일시정지
+        println("Parent is not cancelled")
     }
-    yield() // 일시정지
-    println("Cancelling child")
-    child.cancel()  // 자식 코루틴 취소
-    child.join() // 자식 코루틴 종료 대기
 
-    yield() // 일시정지
-    println("Parent is not cancelled")
-  }
-
-  job.join()  // 부모 코루틴 종료 대기
+    job.join()  // 부모 코루틴 종료 대기
 }
 ```
 
@@ -121,7 +121,7 @@ Parent is not cancelled
 ```
 
 - original 예외는 모든 자식 코루틴이 취소되었을 때 부모 코루틴에서 처리된다.
-    - (The original exception is handled by the parent only when all its children terminate)
+  - (The original exception is handled by the parent only when all its children terminate)
 
 ```kotlin
 @OptIn(DelicateCoroutinesApi::class)
@@ -162,7 +162,7 @@ CoroutineExceptionHandler got java.lang.ArithmeticException
 
 ### Exceptions aggregation
 - 다수의 자식 코루틴에서 예외가 발생했을 때, 첫 번째 예외만 핸들링 된다.
-    - When multiple children of a coroutine fail with an exception, the general rule is "the first exception wins"
+  - When multiple children of a coroutine fail with an exception, the general rule is "the first exception wins"
 
 ```
 Note: This above code will work properly only on JDK7+ that supports suppressed exceptions
@@ -205,32 +205,35 @@ CoroutineExceptionHandler got java.io.IOException
 ```
 
 - `Cancellation exceptions` are transparent and are unwrapped by default
-  @OptIn(DelicateCoroutinesApi::class)
-  fun main() = runBlocking {
-  val handler = CoroutineExceptionHandler { _, exception ->
-  println("CoroutineExceptionHandler got $exception")
-  }
+```kotlin
+@OptIn(DelicateCoroutinesApi::class)
+fun main() = runBlocking {
+    val handler = CoroutineExceptionHandler { _, exception ->
+        println("CoroutineExceptionHandler got $exception")
+    }
 
-  val job = GlobalScope.launch(handler) {  // 부모 코루틴
-  val inner = launch {  // depth 1 자식 코루틴
-  launch {  // depth 2 자식 코루틴
-  throw IOException() // original 예외
-  }
-  }
-  try {
-  inner.join()  // job 종료 대기
-  } catch (e: CancellationException) {
-  println("Rethrowing CancellationException with original cause")
-  // cancellation exception is rethrown
-  // yet the original IOException gets to the handler
-  throw e
-  }
-  }
+    val job = GlobalScope.launch(handler) {  // 부모 코루틴
+        val inner = launch {  // depth 1 자식 코루틴
+            launch {  // depth 2 자식 코루틴
+                throw IOException() // original 예외
+            }
+        }
+        try {
+            inner.join()  // job 종료 대기
+        } catch (e: CancellationException) {
+            println("Rethrowing CancellationException with original cause")
+            // cancellation exception is rethrown
+            // yet the original IOException gets to the handler
+            throw e
+        }
+    }
 
-  job.join()
-  }
+    job.join()
+}
+```
 
 - 결과
+
 ```text
 Rethrowing CancellationException with original cause
 CoroutineExceptionHandler got java.io.IOException
@@ -240,11 +243,11 @@ CoroutineExceptionHandler got java.io.IOException
 - `cancellation`은 코루틴의 전체 계층을 통해 전파되는 양방향 관계이다.
 - `supervision`은 부모 코루틴이 자식 코루틴을 제어, 관리 하는 것을 의미한다.
 - 단방향 취소 사용 예
-    - 프론트 : UI 컴포넌트에서 문제가 생기면 자식 코루틴의 결과가 불필요할 때.
-    - 서버 : 자식 코루틴의 실행을 제어하고, 실패를 트래킹 하거나, 실패한 코루틴만 재실행 할 때
+  - 프론트 : UI 컴포넌트에서 문제가 생기면 자식 코루틴의 결과가 불필요할 때.
+  - 서버 : 자식 코루틴의 실행을 제어하고, 실패를 트래킹 하거나, 실패한 코루틴만 재실행 할 때
 - `job` 과 `supervision job` 의 차이
-    - **일반 `job`과 달리 취소가 아래쪽으로만 전파된다.**
-    - **자식 코루틴의 실패가 부모 코루틴으로 전파되지 않는다.(모든 자식 코루틴이 자체적으로 예외를 핸들링 한다.)**
+  - **일반 `job`과 달리 취소가 아래쪽으로만 전파된다.**
+  - **자식 코루틴의 실패가 부모 코루틴으로 전파되지 않는다.(모든 자식 코루틴이 자체적으로 예외를 핸들링 한다.)**
 
 #### Supervision job
 - 일반 `job`과 달리 취소가 아래쪽으로만 전파된다.
@@ -293,25 +296,25 @@ secondChild : 두 번째 자식 코루틴 취소 by supervisor cancellation
 
 ```kotlin
 fun main() = runBlocking {
-  try {
-    supervisorScope {
-      val child = launch {
-        try {
-          println("자식 코루틴 : 자식 코루틴 delay")
-          delay(Long.MAX_VALUE)
-        } finally {
-          // supervisor 예외에 의해 자식 코루틴 취소
-          println("자식 코루틴 : 자식 코루틴 취소")
-        }
-      }
+   try {
+        supervisorScope {
+            val child = launch {
+                try {
+                    println("자식 코루틴 : 자식 코루틴 delay")
+                    delay(Long.MAX_VALUE)
+                } finally {
+                    // supervisor 예외에 의해 자식 코루틴 취소
+                    println("자식 코루틴 : 자식 코루틴 취소")
+                }
+            }
 
-      yield()
-      println("supervisor : supervisor 스코프에서 예외 발생")
-      throw AssertionError()
+            yield()
+            println("supervisor : supervisor 스코프에서 예외 발생")
+            throw AssertionError()
+        }
+    } catch (e: AssertionError) {
+        println("catch AssertionError")
     }
-  } catch (e: AssertionError) {
-    println("catch AssertionError")
-  }
 }
 ```
 
@@ -325,7 +328,7 @@ catch AssertionError
 ```
 
 - 자식 코루틴의 실패가 부모 코루틴으로 전파되지 않는다.
-    - It means that coroutines launched directly inside the supervisorScope do use the CoroutineExceptionHandler that is installed in their scope in the same way as root coroutines do
+  - It means that coroutines launched directly inside the supervisorScope do use the CoroutineExceptionHandler that is installed in their scope in the same way as root coroutines do
 
 ```kotlin
 fun main() = runBlocking {
@@ -405,7 +408,7 @@ Counter = 45863
 - @Volatile은 멀티 스레드에서 동시 쓰기에 대해 동시성을 보장해주진 않는다.
 
 ```kotlin
-@Volatile 
+@Volatile
 var counter = 0
 
 fun main() = runBlocking {
@@ -550,7 +553,7 @@ Counter = 100000
 ```kotlin
 // withLock 확장함수
 public suspend inline fun <T> Mutex.withLock(owner: Any? = null, action: () -> T): T {
-    contract { 
+    contract {
         callsInPlace(action, InvocationKind.EXACTLY_ONCE)
     }
 
@@ -601,7 +604,7 @@ fun main() = runBlocking<Unit> {
 ```
 
 ## 과제
-- 순착순 이벤트 : 100개로 제한된 티케팅을 한다. 한 번에 하나씩만 티켓을 구매할 수 있다. 
+- 순착순 이벤트 : 100개로 제한된 티케팅을 한다. 한 번에 하나씩만 티켓을 구매할 수 있다.
 ```text
 ticketingLimit : 100
 - 티케팅은 코루틴을 이용해 동시 처리
